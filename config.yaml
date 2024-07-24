@@ -1,0 +1,11 @@
+env: production
+logLevel: INFO
+kinesis:
+  stream:
+    name: default
+grpc:
+  port: 50051
+api:
+  port: 8080
+  max:
+    connections: 1000
