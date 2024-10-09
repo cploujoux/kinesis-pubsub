@@ -21,7 +21,6 @@ func New(logger *zap.SugaredLogger) (*Kinesis, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// Create Kinesis client
 	kinesisClient := kinesispackage.NewFromConfig(cfg)
 	streamName := viper.GetString("kinesis.stream.name")

@@ -6,6 +6,6 @@ kinesis:
 grpc:
   port: 50051
 api:
-  port: 8080
+  port: 1341
   max:
     connections: 1000

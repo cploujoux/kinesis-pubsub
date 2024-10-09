@@ -15,9 +15,9 @@ import (
 )
 
 func (a *apiServer) pushEvent(c *gin.Context) {
-	var event cloudevents.Event
-	if err := c.ShouldBindJSON(&event); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid CloudEvent format"})
+	event, err := cloudevents.NewEventFromHTTPRequest(c.Request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid CloudEvent format:%v", err)})
 		return
 	}
 
@@ -63,6 +63,7 @@ func (a *apiServer) subscribeEvents(c *gin.Context) {
 		return
 	}
 
+	a.logger.Info("event:Subscribed to Kinesis stream")
 	for {
 		select {
 		case <-c.Request.Context().Done():
