@@ -9,3 +9,9 @@ api:
   port: 1341
   max:
     connections: 1000
+clickhouse:
+  host: d1uumpubhy.us-east-2.aws.clickhouse.cloud
+  port: 9440
+  user: default
+  password: "cE1T3pdQU~skZ"
+  database: default

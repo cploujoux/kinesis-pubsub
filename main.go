@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/cploujoux/kinesis-pubsub/api"
+	"github.com/cploujoux/kinesis-pubsub/clickhouse"
 	"github.com/cploujoux/kinesis-pubsub/config"
 	"github.com/cploujoux/kinesis-pubsub/grpc"
 	"github.com/cploujoux/kinesis-pubsub/kinesis"
@@ -22,9 +23,13 @@ func main() {
 	if err != nil {
 		sugar.Fatalf("Error starting kinesis client, %v", err)
 	}
+	clickhouse, err := clickhouse.New(sugar)
+	if err != nil {
+		sugar.Fatalf("Error starting clickhouse client, %v", err)
+	}
 	// Start HTTP server
 	go func() {
-		apiServer := api.New(kinesis, sugar)
+		apiServer := api.New(kinesis, sugar, clickhouse)
 		apiServer.Start()
 	}()
 
