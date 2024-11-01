@@ -6,6 +6,7 @@ import (
 
 	"github.com/cploujoux/kinesis-pubsub/clickhouse"
 	"github.com/cploujoux/kinesis-pubsub/kinesis"
+	"github.com/cploujoux/kinesis-pubsub/sns"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -13,20 +14,22 @@ import (
 )
 
 type apiServer struct {
-	kinesis   *kinesis.Kinesis
+	kinesis    *kinesis.Kinesis
+	sns        *sns.SNS
 	clickhouse *clickhouse.Clickhouse
 	connLimit  chan struct{}
 	logger     *zap.SugaredLogger
 }
 
-func New(kinesis *kinesis.Kinesis, logger *zap.SugaredLogger, clickhouse *clickhouse.Clickhouse) *apiServer {
+func New(kinesis *kinesis.Kinesis, sns *sns.SNS, logger *zap.SugaredLogger, clickhouse *clickhouse.Clickhouse) *apiServer {
 	maxConnections := viper.GetInt("api.max.connections")
 
 	return &apiServer{
-		kinesis:   kinesis,
+		kinesis:    kinesis,
+		sns:        sns,
 		clickhouse: clickhouse,
-		connLimit: make(chan struct{}, maxConnections),
-		logger:    logger,
+		connLimit:  make(chan struct{}, maxConnections),
+		logger:     logger,
 	}
 }
 

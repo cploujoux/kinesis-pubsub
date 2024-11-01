@@ -10,11 +10,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/gin-gonic/gin"
 )
 
 func (a *apiServer) pushEvent(c *gin.Context) {
+	ctx := c.Request.Context()
 	event, err := cloudevents.NewEventFromHTTPRequest(c.Request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid CloudEvent format:%v", err)})
@@ -27,23 +29,21 @@ func (a *apiServer) pushEvent(c *gin.Context) {
 		return
 	}
 
-	_, err = a.kinesis.Client.PutRecord(context.TODO(), &kinesis.PutRecordInput{
-		StreamName:   aws.String(a.kinesis.StreamName),
-		Data:         eventJSON,
-		PartitionKey: aws.String(event.ID()),
+	_, err = a.sns.Client.Publish(ctx, &sns.PublishInput{
+		TopicArn: aws.String(a.sns.TopicARN),
+		Message:  aws.String(string(eventJSON)),
 	})
-
 	if err != nil {
-		a.logger.Error("Error pushing event to Kinesis:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to push event to Kinesis"})
+		a.logger.Error("Error pushing event to SNS:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to push event to SNS"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "Event pushed successfully"})
 }
 
 // subscribeEvents handles the GET /events endpoint to subscribe to CloudEvents from Kinesis
 func (a *apiServer) subscribeEvents(c *gin.Context) {
+	ctx := c.Request.Context()
 	select {
 	case a.connLimit <- struct{}{}:
 		defer func() { <-a.connLimit }()
@@ -57,43 +57,34 @@ func (a *apiServer) subscribeEvents(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 	c.Header("Transfer-Encoding", "chunked")
 
-	shardIterators, err := a.getShardIterators()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get shard iterators"})
-		return
-	}
-
 	a.logger.Info("event:Subscribed to Kinesis stream")
 	for {
 		select {
 		case <-c.Request.Context().Done():
 			return
 		default:
-			for shardId, iterator := range shardIterators {
-				output, err := a.kinesis.Client.GetRecords(context.TODO(), &kinesis.GetRecordsInput{
-					ShardIterator: iterator,
-				})
-
-				if err != nil {
-					a.logger.Errorf("Error getting records from shard %s: %v", shardId, err)
-					continue
-				}
-
-				for _, record := range output.Records {
-					var event cloudevents.Event
-					if err := json.Unmarshal(record.Data, &event); err != nil {
-						a.logger.Errorf("Error unmarshalling event: %v", err)
-						continue
-					}
-
-					c.SSEvent("message", event)
-					c.Writer.Flush()
-				}
-
-				shardIterators[shardId] = output.NextShardIterator
+			output, err := a.sns.Client.Subscribe(ctx, &sns.SubscribeInput{
+				TopicArn: aws.String(a.sns.TopicARN),
+				Protocol: aws.String("https"),
+				Endpoint: aws.String(fmt.Sprintf("http://%s/events", c.Request.Host)),
+			})
+			if err != nil {
+				a.logger.Errorf("Error subscribing to SNS topic: %v", err)
+				continue
 			}
-			time.Sleep(time.Second)
+			println(output)
+			// for _, record := range output.Records {
+			// 	var event cloudevents.Event
+			// 	if err := json.Unmarshal(record.Data, &event); err != nil {
+			// 		a.logger.Errorf("Error unmarshalling event: %v", err)
+			// 		continue
+			// 	}
+
+			// 	c.SSEvent("message", event)
+			// 	c.Writer.Flush()
+			// }
 		}
+		time.Sleep(time.Second)
 	}
 }
 
